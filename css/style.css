@@ -1650,6 +1650,33 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* ---------- Auth en verde lima ---------- */
+.auth-view .btn-primary {
+  background: #65a30d;
+}
+
+.auth-view .btn-primary:hover {
+  background: #4d7c0f;
+}
+
+.auth-view .auth-form input:focus {
+  border-color: #84cc16;
+  box-shadow: 0 0 0 2px #ecfccb;
+}
+
+.auth-view .link-btn {
+  color: #65a30d;
+}
+
+.auth-view .auth-msg.info {
+  background: #ecfccb;
+  color: #4d7c0f;
+}
+
+.auth-view .brand-name {
+  color: #4d7c0f;
+}
+
 /* ---------- Usuario en la barra lateral ---------- */
 .sidebar-user {
   display: flex;
