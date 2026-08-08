@@ -9,13 +9,101 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const DAY_LETTERS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-const HABIT_COLORS = ['#2f80ed', '#38bdf8', '#2563eb', '#0ea5e9', '#60a5fa', '#22d3ee', '#4cc2ff', '#3b82f6', '#7dd3fc', '#1d4ed8'];
+const HABIT_COLORS = [
+  '#2f80ed', '#38bdf8', '#2563eb', '#0ea5e9', '#60a5fa', '#22d3ee', '#4cc2ff', '#3b82f6', '#7dd3fc', '#1d4ed8',
+  '#8b5cf6', '#7c3aed', '#a78bfa', '#c084fc', '#d946ef', '#f0abfc', '#ec4899', '#f472b6', '#fb7185', '#e11d48',
+  '#f43f5e', '#ef4444', '#f97316', '#fb923c', '#f59e0b', '#fbbf24', '#facc15', '#eab308', '#a3e635', '#84cc16',
+  '#4ade80', '#22c55e', '#16a34a', '#10b981', '#2dd4bf', '#14b8a6', '#06b6d4', '#0d9488', '#34d399', '#4ade80',
+  '#64748b', '#475569', '#334155', '#1e293b', '#78350f', '#831843', '#6d28d9', '#4f46e5', '#9333ea', '#a16207'
+];
 
 /* ---------- Persistencia ---------- */
-/* Los datos se guardan por usuario: clave "habits" pasa a ser "<userId>_habits". */
+/* Los datos se guardan por usuario: clave "habits" pasa a ser "<userId>_habits".
+   Además, si Supabase está conectado, se sincronizan en la nube (tabla user_data). */
 function pfx(key) {
   const uid = window.Session && window.Session.userId;
   return uid ? `${uid}_${key}` : key;
+}
+
+/* Estado de sincronización con la nube */
+window.syncCache = {};
+window.syncPending = {};
+window.syncTimer = null;
+window.syncReady = false;
+window.syncFirstLogin = false;
+
+function syncKeyPrefix() {
+  return (window.Session && window.Session.userId) ? `${window.Session.userId}_` : '';
+}
+
+/* Trae los datos del usuario desde Supabase y los vuelca en localStorage */
+async function syncPull() {
+  const uid = window.Session && window.Session.userId;
+  window.syncReady = false;
+  if (!uid || !window.supabaseClient) return;
+  try {
+    const { data, error } = await window.supabaseClient.from('user_data').select('key, data');
+    if (error) throw error;
+    const rows = data || [];
+    window.syncFirstLogin = rows.length === 0;
+    rows.forEach((r) => {
+      window.syncCache[r.key] = r.data;
+      try {
+        localStorage.setItem(uid + '_' + r.key, JSON.stringify(r.data));
+      } catch (e) { /* sin espacio */ }
+    });
+    window.syncReady = true;
+  } catch (e) {
+    console.error('Error al traer datos de la nube:', e);
+  }
+}
+
+/* Encola un guardado en la nube (con retraso para agrupar cambios) */
+function syncPush(key, val) {
+  const uid = window.Session && window.Session.userId;
+  if (!uid || !window.supabaseClient) return;
+  window.syncPending[key] = val;
+  if (!window.syncTimer) {
+    window.syncTimer = setTimeout(flushSync, 700);
+  }
+}
+
+async function flushSync() {
+  window.syncTimer = null;
+  const uid = window.Session && window.Session.userId;
+  if (!uid || !window.supabaseClient) return;
+  const pending = window.syncPending;
+  window.syncPending = {};
+  const keys = Object.keys(pending);
+  if (!keys.length) return;
+  for (const key of keys) {
+    try {
+      await window.supabaseClient.from('user_data').upsert({
+        user_id: uid,
+        key,
+        data: pending[key],
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,key' });
+    } catch (e) {
+      console.error('Error al guardar en la nube:', key, e);
+    }
+  }
+}
+
+/* Empuja todo el estado local a la nube (primer inicio de sesión) */
+function syncPushAll() {
+  const uid = window.Session && window.Session.userId;
+  if (!uid || !window.supabaseClient || !window.syncReady) return;
+  const keys = ['habits', 'habitChecks', 'weekTasks', 'studyLog', 'pomodoroDays',
+    'habitTime', 'calendarMarks', 'calendarNotes', 'timerMode', 'workMin', 'breakMin', 'customMin',
+    'recurringTasks', 'recurringDone', 'soundPref', 'timerNotif'];
+  keys.forEach((k) => {
+    try {
+      const raw = localStorage.getItem(syncKeyPrefix() + k);
+      if (raw !== null) window.syncPending[k] = JSON.parse(raw);
+    } catch (e) { /* ignorar */ }
+  });
+  flushSync();
 }
 
 const store = {
@@ -29,6 +117,7 @@ const store = {
   },
   set(key, val) {
     localStorage.setItem(pfx(key), JSON.stringify(val));
+    syncPush(key, val);
   }
 };
 
@@ -38,7 +127,13 @@ let weekTasks = {};
 let studyLog = [];
 let pomodoroDays = {};
 let habitTime = {};
+let calendarMarks = {};
+let calendarNotes = {};
 let timerMode = 'normal';
+let recurringTasks = [];
+let recurringDone = {};
+let soundPref = 'beep';
+let notifEnabled = false;
 
 function loadData() {
   habits = store.get('habits', []);
@@ -47,6 +142,12 @@ function loadData() {
   studyLog = store.get('studyLog', []);
   pomodoroDays = store.get('pomodoroDays', {});
   habitTime = store.get('habitTime', {});
+  calendarMarks = store.get('calendarMarks', {});
+  calendarNotes = store.get('calendarNotes', {});
+  recurringTasks = store.get('recurringTasks', []);
+  recurringDone = store.get('recurringDone', {});
+  soundPref = store.get('soundPref', 'beep');
+  notifEnabled = store.get('timerNotif', false);
   timerMode = store.get('timerMode', 'normal');
   timer.workMin = store.get('workMin', 25);
   timer.breakMin = store.get('breakMin', 5);
@@ -59,6 +160,10 @@ function saveTasks() { store.set('weekTasks', weekTasks); }
 function saveStudy() { store.set('studyLog', studyLog); }
 function savePomodoro() { store.set('pomodoroDays', pomodoroDays); }
 function saveHabitTime() { store.set('habitTime', habitTime); }
+function saveCalendarMarks() { store.set('calendarMarks', calendarMarks); }
+function saveCalendarNotes() { store.set('calendarNotes', calendarNotes); }
+function saveRecurringTasks() { store.set('recurringTasks', recurringTasks); }
+function saveRecurringDone() { store.set('recurringDone', recurringDone); }
 
 /* ---------- Utilidades de fecha ---------- */
 function dateKey(d = new Date()) {
@@ -135,6 +240,55 @@ $('#themeToggle').addEventListener('click', () => {
   applyTheme(current === 'dark' ? 'light' : 'dark');
 });
 
+/* ---------- Avisos del cronómetro ---------- */
+$('#soundSel').addEventListener('change', (e) => {
+  soundPref = e.target.value;
+  store.set('soundPref', soundPref);
+  playSound(soundPref);
+});
+
+$('#notifToggle').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  const applyPermission = (p) => {
+    if (p === 'granted') {
+      notifEnabled = true;
+      store.set('timerNotif', true);
+      toast('Notificaciones activadas');
+    } else {
+      notifEnabled = false;
+      e.target.checked = false;
+      store.set('timerNotif', false);
+      toast('Permiso de notificaciones denegado');
+    }
+  };
+  if (!on) {
+    notifEnabled = false;
+    store.set('timerNotif', false);
+    return;
+  }
+  if (!('Notification' in window)) {
+    toast('Tu navegador no soporta notificaciones');
+    e.target.checked = false;
+    return;
+  }
+  if (Notification.permission === 'default') {
+    try {
+      const req = Notification.requestPermission();
+      if (req && typeof req.then === 'function') req.then(applyPermission);
+      else req(applyPermission);
+    } catch (e) {
+      e.target.checked = false;
+    }
+  } else if (Notification.permission === 'granted') {
+    notifEnabled = true;
+    store.set('timerNotif', true);
+  } else {
+    notifEnabled = false;
+    e.target.checked = false;
+    toast('Permiso denegado en el navegador');
+  }
+});
+
 /* ---------- Navegación por pestañas ---------- */
 $$('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -145,6 +299,7 @@ $$('.tab-btn').forEach((btn) => {
     if (btn.dataset.tab === 'stats') renderStats();
     if (btn.dataset.tab === 'timer') renderTimerUi();
     if (btn.dataset.tab === 'week') renderWeek();
+    if (btn.dataset.tab === 'calendar') renderCalendar();
   });
 });
 
@@ -211,6 +366,14 @@ function renderHabits() {
     daysWrap.className = 'habit-days';
     days.forEach((chip) => daysWrap.appendChild(chip));
 
+    const actions = document.createElement('div');
+    actions.className = 'habit-actions';
+
+    const edit = document.createElement('button');
+    edit.className = 'edit-btn';
+    edit.textContent = 'Editar';
+    edit.addEventListener('click', () => openHabitModal(habit.id));
+
     const del = document.createElement('button');
     del.className = 'delete-btn';
     del.textContent = 'Eliminar';
@@ -219,21 +382,26 @@ function renderHabits() {
       habits = habits.filter((h) => h.id !== habit.id);
       delete habitChecks[habit.id];
       delete habitTime[habit.id];
+      recurringTasks.filter((t) => t.habitId === habit.id).forEach((t) => delete recurringDone[t.id]);
+      recurringTasks = recurringTasks.filter((t) => t.habitId !== habit.id);
       saveHabits();
       saveChecks();
       saveHabitTime();
+      saveRecurringTasks();
+      saveRecurringDone();
       buildHabitLinkOptions();
       if (timer.mode === 'normal') loadLinkedNormal();
       renderHabits();
       if ($('#tab-stats').classList.contains('active')) renderStats();
       toast('Hábito eliminado');
     });
+    actions.append(edit, del);
 
     const color = document.createElement('span');
     color.className = 'habit-color';
     color.style.background = habit.color;
 
-    card.append(color, info, daysWrap, del);
+    card.append(color, info, daysWrap, actions);
 
     if (habit.targetMin > 0) {
       const todayMin = trackedMinutes(habit.id);
@@ -259,13 +427,19 @@ function renderHabits() {
   });
 }
 
-/* Modal nuevo hábito */
+/* Modal añadir/editar hábito */
 let selectedColor = HABIT_COLORS[0];
+let editingHabitId = null;
 
-function openHabitModal() {
+function openHabitModal(habitId) {
+  editingHabitId = habitId || null;
+  const h = editingHabitId ? habits.find((x) => x.id === editingHabitId) : null;
+  $('#habitModalTitle').textContent = editingHabitId ? 'Editar hábito' : 'Nuevo hábito';
+  $('#saveHabit').textContent = editingHabitId ? 'Guardar cambios' : 'Guardar';
+  $('#habitName').value = h ? h.name : '';
+  $('#habitTargetMin').value = h && h.targetMin > 0 ? h.targetMin : '';
+  selectedColor = h ? h.color : HABIT_COLORS[0];
   $('#habitModal').classList.remove('hidden');
-  $('#habitName').value = '';
-  $('#habitTargetMin').value = '';
   $('#habitName').focus();
   buildColorPicker();
 }
@@ -290,7 +464,7 @@ function buildColorPicker() {
   });
 }
 
-$('#addHabitBtn').addEventListener('click', openHabitModal);
+$('#addHabitBtn').addEventListener('click', () => openHabitModal());
 $('#cancelHabit').addEventListener('click', closeHabitModal);
 $('#habitModal').addEventListener('click', (e) => {
   if (e.target === $('#habitModal')) closeHabitModal();
@@ -307,6 +481,26 @@ $('#saveHabit').addEventListener('click', () => {
   }
   const targetRaw = parseInt($('#habitTargetMin').value, 10);
   const targetMin = targetRaw > 0 ? targetRaw : 0;
+
+  if (editingHabitId) {
+    const h = habits.find((x) => x.id === editingHabitId);
+    if (h) {
+      h.name = name;
+      h.color = selectedColor;
+      h.targetMin = targetMin;
+      saveHabits();
+      buildHabitLinkOptions();
+      if (timer.mode === 'normal') loadLinkedNormal();
+      closeHabitModal();
+      renderHabits();
+      if ($('#tab-stats').classList.contains('active')) renderStats();
+      if ($('#tab-week').classList.contains('active')) renderWeek();
+      if ($('#tab-calendar').classList.contains('active')) renderCalendar();
+      toast('Hábito actualizado');
+    }
+    return;
+  }
+
   habits.push({ id: uid(), name, color: selectedColor, targetMin });
   saveHabits();
   buildHabitLinkOptions();
@@ -435,11 +629,12 @@ function tick() {
   renderTimerUi();
 }
 
-function beep() {
+function playSound(kind) {
+  if (!kind || kind === 'none') return;
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
-    const play = (t, freq) => {
+    const tone = (t, freq, dur = 0.42) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -448,14 +643,43 @@ function beep() {
       osc.type = 'sine';
       gain.gain.setValueAtTime(0.001, ctx.currentTime + t);
       gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + dur - 0.02);
       osc.start(ctx.currentTime + t);
-      osc.stop(ctx.currentTime + t + 0.42);
+      osc.stop(ctx.currentTime + t + dur);
     };
-    play(0, 880);
-    play(0.25, 880);
-    play(0.5, 1174);
+    if (kind === 'ding') {
+      tone(0, 1568, 0.5);
+    } else if (kind === 'chime') {
+      tone(0, 659, 0.7);
+      tone(0.3, 880, 0.9);
+    } else { // beep
+      tone(0, 880);
+      tone(0.25, 880);
+      tone(0.5, 1174);
+    }
   } catch (e) { /* sin audio */ }
+}
+
+function playAlert() {
+  playSound(soundPref);
+
+  if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+  let title, body;
+  if (timer.mode === 'normal') {
+    title = 'Sesión de estudio completada';
+    body = '¡Buen trabajo! Tiempo cumplido.';
+  } else if (timer.phase === 'work') {
+    title = 'Pomodoro completado';
+    body = 'Descansa unos minutos.';
+  } else {
+    title = 'Descanso terminado';
+    body = '¡A trabajar de nuevo!';
+  }
+  try {
+    const n = new Notification(title, { body, tag: 'hbtrack-timer' });
+    n.onclick = () => { window.focus(); n.close(); };
+    setTimeout(() => n.close(), 10000);
+  } catch (e) { /* sin notificación */ }
 }
 
 function logStudy(minutes, kind) {
@@ -586,7 +810,7 @@ function setNormalTime(totalMin, opts = {}) {
 }
 
 function completePhase() {
-  beep();
+  playAlert();
   pauseTimer();
 
   if (timer.mode === 'normal') {
@@ -716,10 +940,31 @@ $('#applyPomodoro').addEventListener('click', () => {
    ============================================================ */
 let weekOffset = 0;
 
+const TASK_TYPES = ['Tarea', 'Hábito', 'Hobbie', 'Compromiso'];
+const TYPE_COLORS = {
+  Tarea: '#2383e2',
+  Hobbie: '#8b5cf6',
+  Compromiso: '#f59e0b'
+};
+
+function taskColor(task) {
+  if (task.type === 'Hábito' && task.habitId) {
+    const h = habits.find((x) => x.id === task.habitId);
+    if (h) return h.color;
+  }
+  return TYPE_COLORS[task.type] || TYPE_COLORS.Tarea;
+}
+
 function renderWeek() {
   const grid = $('#weekGrid');
   const weekStart = shiftDays(startOfWeek(new Date()), weekOffset * 7);
   const today = dateKey();
+
+  $('#weekSel').value = String(weekNumber(weekStart));
+  populateWeekOptions(weekStart.getFullYear(), weekStart.getMonth());
+  $('#weekSel').value = String(weekNumber(weekStart));
+  $('#weekMonthSel').value = String(weekStart.getMonth());
+  $('#weekYearSel').value = String(weekStart.getFullYear());
 
   const from = weekStart.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   const to = shiftDays(weekStart, 6).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
@@ -730,7 +975,12 @@ function renderWeek() {
   for (let i = 0; i < 7; i++) {
     const d = shiftDays(weekStart, i);
     const key = dateKey(d);
-    const tasks = weekTasks[key] || [];
+    const tasks = [
+      ...(weekTasks[key] || []),
+      ...recurringTasks
+        .filter((t) => t.weekday === d.getDay())
+        .map((t) => ({ ...t, repeat: true, done: !!(recurringDone[t.id] && recurringDone[t.id][key]) }))
+    ];
 
     const col = document.createElement('div');
     col.className = 'day-col' + (todayIs(key) ? ' today-col' : '');
@@ -738,8 +988,32 @@ function renderWeek() {
     const h4 = Object.assign(document.createElement('h4'), { textContent: DAY_NAMES[d.getDay()] });
     const dateNum = Object.assign(document.createElement('span'), {
       className: 'date-num',
-      textContent: `${d.getDate()} ${d.toLocaleDateString('es-ES', { month: 'short' })}`
+      textContent: d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
     });
+
+    // Fechas importantes del calendario mostradas en la semana
+    const importantWrap = document.createElement('div');
+    importantWrap.className = 'day-important';
+    if (calendarMarks[key]) {
+      const b = document.createElement('span');
+      b.className = 'cal-important-badge';
+      b.textContent = 'Importante';
+      importantWrap.appendChild(b);
+    }
+    const notes = calendarNotes[key] || [];
+    notes.slice(0, 3).forEach((n) => {
+      const item = document.createElement('div');
+      item.className = 'day-important-note';
+      item.textContent = n.text;
+      item.title = n.text;
+      importantWrap.appendChild(item);
+    });
+    if (notes.length > 3) {
+      const more = document.createElement('span');
+      more.className = 'cal-important-more';
+      more.textContent = `+${notes.length - 3} más`;
+      importantWrap.appendChild(more);
+    }
 
     const ul = document.createElement('ul');
     ul.className = 'task-list';
@@ -747,14 +1021,38 @@ function renderWeek() {
     tasks.forEach((task) => {
       const li = document.createElement('li');
       li.className = 'task-item' + (task.done ? ' done' : '');
+      li.style.setProperty('--task-color', taskColor(task));
+
+      const dot = document.createElement('span');
+      dot.className = 'task-dot';
+      dot.style.background = taskColor(task);
+      dot.title = task.type || 'Tarea';
 
       const chk = document.createElement('input');
       chk.type = 'checkbox';
       chk.className = 'task-check';
       chk.checked = !!task.done;
       chk.addEventListener('change', () => {
-        task.done = chk.checked;
-        saveTasks();
+        if (task.repeat) {
+          if (!recurringDone[task.id]) recurringDone[task.id] = {};
+          recurringDone[task.id][key] = chk.checked;
+          if (!recurringDone[task.id][key]) delete recurringDone[task.id][key];
+          if (Object.keys(recurringDone[task.id]).length === 0) delete recurringDone[task.id];
+          saveRecurringDone();
+        } else {
+          task.done = chk.checked;
+          saveTasks();
+        }
+        if (task.type === 'Hábito' && task.habitId) {
+          if (chk.checked) {
+            if (!habitChecks[task.habitId]) habitChecks[task.habitId] = {};
+            habitChecks[task.habitId][key] = true;
+          } else if (habitChecks[task.habitId]) {
+            delete habitChecks[task.habitId][key];
+          }
+          saveChecks();
+          if ($('#tab-habits').classList.contains('active')) renderHabits();
+        }
         renderWeek();
       });
 
@@ -763,52 +1061,427 @@ function renderWeek() {
         textContent: task.text
       });
 
+      li.append(dot, chk, span);
+
+      if (task.repeat) {
+        const rep = document.createElement('span');
+        rep.className = 'task-repeat-icon';
+        rep.textContent = '↻';
+        rep.title = 'Se repite cada semana';
+        li.appendChild(rep);
+      }
+
       const del = document.createElement('button');
       del.className = 'task-del';
       del.textContent = 'x';
       del.title = 'Eliminar';
       del.addEventListener('click', () => {
-        weekTasks[key] = tasks.filter((t) => t.id !== task.id);
-        if (weekTasks[key].length === 0) delete weekTasks[key];
-        saveTasks();
+        if (task.repeat) {
+          if (!confirm(`¿Eliminar la tarea recurrente "${task.text}" de todas las semanas?`)) return;
+          recurringTasks = recurringTasks.filter((t) => t.id !== task.id);
+          delete recurringDone[task.id];
+          saveRecurringTasks();
+          saveRecurringDone();
+        } else {
+          weekTasks[key] = (weekTasks[key] || []).filter((t) => t.id !== task.id);
+          if (weekTasks[key].length === 0) delete weekTasks[key];
+          saveTasks();
+        }
         renderWeek();
       });
 
-      li.append(chk, span, del);
+      li.append(del);
       ul.appendChild(li);
     });
 
+    // Formulario para añadir por tipo
     const addForm = document.createElement('div');
     addForm.className = 'task-add';
+
+    const typeSel = document.createElement('select');
+    typeSel.className = 'task-type';
+    TASK_TYPES.forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      typeSel.appendChild(opt);
+    });
+
+    const addRow = document.createElement('div');
+    addRow.className = 'task-add-row';
+
     const input = Object.assign(document.createElement('input'), {
-      placeholder: 'Añadir tarea...',
+      placeholder: 'Escribe...',
       maxLength: 60
     });
+
+    const habitSel = document.createElement('select');
+    habitSel.className = 'task-habit hidden';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = 'Elegir hábito…';
+    habitSel.appendChild(ph);
+    habits.forEach((h) => {
+      const opt = document.createElement('option');
+      opt.value = h.id;
+      opt.textContent = h.name;
+      habitSel.appendChild(opt);
+    });
+
+    const repeatWrap = document.createElement('label');
+    repeatWrap.className = 'task-repeat';
+    repeatWrap.title = 'Se repite todos los ' + DAY_NAMES[d.getDay()];
+    const repeatChk = document.createElement('input');
+    repeatChk.type = 'checkbox';
+    const repeatSpan = Object.assign(document.createElement('span'), { textContent: 'Repite' });
+    repeatWrap.append(repeatChk, repeatSpan);
+
     const addBtn = document.createElement('button');
     addBtn.textContent = '+';
     addBtn.title = 'Añadir';
 
+    const toggleInputs = () => {
+      const isHabit = typeSel.value === 'Hábito';
+      input.classList.toggle('hidden', isHabit);
+      habitSel.classList.toggle('hidden', !isHabit);
+    };
+    typeSel.addEventListener('change', toggleInputs);
+
     const addTask = () => {
-      const text = input.value.trim();
-      if (!text) return;
-      if (!weekTasks[key]) weekTasks[key] = [];
-      weekTasks[key].push({ id: uid(), text, done: false });
-      saveTasks();
+      const type = typeSel.value;
+      let text = '';
+      let habitId = null;
+      if (type === 'Hábito') {
+        habitId = habitSel.value;
+        const h = habits.find((x) => x.id === habitId);
+        if (!h) {
+          toast('Selecciona un hábito');
+          return;
+        }
+        text = h.name;
+      } else {
+        text = input.value.trim();
+        if (!text) {
+          toast('Escribe el nombre');
+          return;
+        }
+      }
+      if (repeatChk.checked) {
+        recurringTasks.push({ id: uid(), type, text, habitId, weekday: d.getDay() });
+        saveRecurringTasks();
+        toast('Tarea recurrente creada');
+      } else {
+        if (!weekTasks[key]) weekTasks[key] = [];
+        weekTasks[key].push({
+          id: uid(),
+          type,
+          text,
+          habitId,
+          done: habitId ? !!(habitChecks[habitId] && habitChecks[habitId][key]) : false
+        });
+        saveTasks();
+      }
       renderWeek();
     };
     addBtn.addEventListener('click', addTask);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') addTask();
     });
+    habitSel.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addTask();
+    });
 
-    addForm.append(input, addBtn);
-    col.append(h4, dateNum, ul, addForm);
+    addRow.append(input, habitSel, repeatWrap, addBtn);
+    addForm.append(typeSel, addRow);
+    col.append(h4, dateNum, importantWrap, ul, addForm);
     grid.appendChild(col);
   }
 }
 
 $('#prevWeek').addEventListener('click', () => { weekOffset--; renderWeek(); });
 $('#nextWeek').addEventListener('click', () => { weekOffset++; renderWeek(); });
+
+/* ---------- Navegación por semana / mes / año ---------- */
+function firstWeekStart(y, m) {
+  return startOfWeek(new Date(y, m, 1));
+}
+
+function weekNumber(weekStart) {
+  const fws = firstWeekStart(weekStart.getFullYear(), weekStart.getMonth());
+  return Math.round((weekStart - fws) / (7 * 86400000)) + 1;
+}
+
+function goToWeek(y, m, n) {
+  const target = shiftDays(firstWeekStart(y, m), (n - 1) * 7);
+  weekOffset = Math.round((target - startOfWeek(new Date())) / (7 * 86400000));
+  renderWeek();
+}
+
+function buildWeekSelects() {
+  const wSel = $('#weekSel');
+  if (!wSel || wSel.options.length) return;
+  wSel.addEventListener('change', () => {
+    goToWeek(parseInt($('#weekYearSel').value, 10), parseInt($('#weekMonthSel').value, 10), parseInt(wSel.value, 10));
+  });
+
+  const mSel = $('#weekMonthSel');
+  MONTH_NAMES.forEach((name, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = name;
+    mSel.appendChild(opt);
+  });
+  mSel.addEventListener('change', () => {
+    goToWeek(parseInt($('#weekYearSel').value, 10), parseInt(mSel.value, 10), 1);
+  });
+
+  const ySel = $('#weekYearSel');
+  const cy = new Date().getFullYear();
+  for (let y = cy - 6; y <= cy + 6; y++) {
+    const opt = document.createElement('option');
+    opt.value = String(y);
+    opt.textContent = String(y);
+    ySel.appendChild(opt);
+  }
+  ySel.addEventListener('change', () => {
+    goToWeek(parseInt(ySel.value, 10), parseInt($('#weekMonthSel').value, 10), 1);
+  });
+}
+
+/* Muestra cada semana como su rango de fechas: "agosto 3 - agosto 9" */
+function populateWeekOptions(y, m) {
+  const wSel = $('#weekSel');
+  const current = wSel.value;
+  wSel.innerHTML = '';
+  const fws = firstWeekStart(y, m);
+  for (let n = 1; n <= 6; n++) {
+    const start = shiftDays(fws, (n - 1) * 7);
+    const end = shiftDays(start, 6);
+    const opt = document.createElement('option');
+    opt.value = String(n);
+    opt.textContent = `${start.toLocaleDateString('es-ES', { month: 'long' })} ${start.getDate()} - ${end.toLocaleDateString('es-ES', { month: 'long' })} ${end.getDate()}`;
+    wSel.appendChild(opt);
+  }
+  wSel.value = current;
+}
+
+/* ============================================================
+   CALENDARIO
+   ============================================================ */
+const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+let calY = new Date().getFullYear();
+let calM = new Date().getMonth();
+
+function weekActivity(key) {
+  const tasks = weekTasks[key] || [];
+  const doneTasks = tasks.filter((t) => t.done).length;
+  const doneHabits = habits.filter((h) => habitChecks[h.id] && habitChecks[h.id][key]).length;
+  return { doneTasks, doneHabits };
+}
+
+function renderCalendar() {
+  const grid = $('#calendarGrid');
+  const today = dateKey();
+
+  $('#calMonth').value = String(calM);
+  $('#calYear').value = String(calY);
+
+  grid.innerHTML = '';
+
+  const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  weekdays.forEach((wd) => {
+    const hd = document.createElement('div');
+    hd.className = 'cal-weekday';
+    hd.textContent = wd;
+    grid.appendChild(hd);
+  });
+
+  const first = new Date(calY, calM, 1);
+  const offset = (first.getDay() + 6) % 7; // lunes = 0
+  const startDate = shiftDays(first, -offset);
+
+  for (let i = 0; i < 42; i++) {
+    const d = shiftDays(startDate, i);
+    const key = dateKey(d);
+    const inMonth = d.getMonth() === calM;
+    const isToday = key === today;
+    const marked = !!calendarMarks[key];
+    const { doneTasks, doneHabits } = weekActivity(key);
+
+    const cell = document.createElement('button');
+    cell.className = 'cal-cell' +
+      (inMonth ? '' : ' out') +
+      (isToday ? ' today' : '') +
+      (marked ? ' marked' : '');
+
+    const num = document.createElement('span');
+    num.className = 'cal-num';
+    num.textContent = d.getDate();
+
+    const marks = document.createElement('span');
+    marks.className = 'cal-marks';
+    if (marked) {
+      const m = document.createElement('span');
+      m.className = 'mark main';
+      marks.appendChild(m);
+    }
+    if (doneTasks > 0) {
+      const m = document.createElement('span');
+      m.className = 'mark tasks';
+      m.title = `${doneTasks} tarea${doneTasks === 1 ? '' : 's'} hecha${doneTasks === 1 ? '' : 's'}`;
+      marks.appendChild(m);
+    }
+    if (doneHabits > 0) {
+      const m = document.createElement('span');
+      m.className = 'mark habits';
+      m.title = `${doneHabits} hábito${doneHabits === 1 ? '' : 's'} completado${doneHabits === 1 ? '' : 's'}`;
+      marks.appendChild(m);
+    }
+    const notes = calendarNotes[key] || [];
+    if (notes.length) {
+      const b = document.createElement('span');
+      b.className = 'cal-note';
+      b.textContent = notes.length;
+      b.title = `${notes.length} importante${notes.length === 1 ? '' : 's'}`;
+      marks.appendChild(b);
+    }
+
+    cell.append(num, marks);
+
+    cell.addEventListener('click', () => {
+      if (!inMonth) return;
+      openDayModal(key);
+    });
+
+    grid.appendChild(cell);
+  }
+}
+
+/* ---------- Selectores de mes / año ---------- */
+function buildCalSelects() {
+  const mSel = $('#calMonth');
+  if (!mSel || mSel.options.length) return;
+  MONTH_NAMES.forEach((name, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = name;
+    mSel.appendChild(opt);
+  });
+  mSel.addEventListener('change', () => {
+    calM = parseInt(mSel.value, 10);
+    renderCalendar();
+  });
+
+  const ySel = $('#calYear');
+  const cy = new Date().getFullYear();
+  for (let y = cy - 6; y <= cy + 6; y++) {
+    const opt = document.createElement('option');
+    opt.value = String(y);
+    opt.textContent = String(y);
+    ySel.appendChild(opt);
+  }
+  ySel.addEventListener('change', () => {
+    calY = parseInt(ySel.value, 10);
+    renderCalendar();
+  });
+}
+
+/* ---------- Modal del día (marcar + cosas importantes) ---------- */
+let dayModalKey = null;
+
+function openDayModal(key) {
+  dayModalKey = key;
+  const d = keyToDate(key);
+  $('#dayModalTitle').textContent = d.toLocaleDateString('es-ES', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+  $('#dayMarked').checked = !!calendarMarks[key];
+  renderDayNotes();
+  $('#dayNoteInput').value = '';
+  $('#dayModal').classList.remove('hidden');
+  $('#dayNoteInput').focus();
+}
+
+function renderDayNotes() {
+  const wrap = $('#dayNotes');
+  wrap.innerHTML = '';
+  const notes = calendarNotes[dayModalKey] || [];
+  if (!notes.length) {
+    wrap.appendChild(Object.assign(document.createElement('p'), {
+      className: 'muted',
+      textContent: 'Sin notas todavía.'
+    }));
+    return;
+  }
+  notes.forEach((n) => {
+    const li = document.createElement('div');
+    li.className = 'day-note-item';
+    const span = Object.assign(document.createElement('span'), { textContent: n.text });
+    const del = document.createElement('button');
+    del.className = 'task-del';
+    del.textContent = 'x';
+    del.addEventListener('click', () => {
+      calendarNotes[dayModalKey] = notes.filter((x) => x.id !== n.id);
+      if (!calendarNotes[dayModalKey].length) delete calendarNotes[dayModalKey];
+      saveCalendarNotes();
+      renderDayNotes();
+      renderCalendar();
+    });
+    li.append(span, del);
+    wrap.appendChild(li);
+  });
+}
+
+$('#dayMarked').addEventListener('change', () => {
+  if (!dayModalKey) return;
+  if ($('#dayMarked').checked) calendarMarks[dayModalKey] = true;
+  else delete calendarMarks[dayModalKey];
+  saveCalendarMarks();
+  renderCalendar();
+});
+
+$('#addDayNote').addEventListener('click', () => {
+  const text = $('#dayNoteInput').value.trim();
+  if (!text || !dayModalKey) return;
+  if (!calendarNotes[dayModalKey]) calendarNotes[dayModalKey] = [];
+  calendarNotes[dayModalKey].push({ id: uid(), text });
+  saveCalendarNotes();
+  $('#dayNoteInput').value = '';
+  renderDayNotes();
+  renderCalendar();
+});
+
+$('#dayNoteInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('#addDayNote').click();
+});
+
+$('#closeDayModal').addEventListener('click', () => {
+  $('#dayModal').classList.add('hidden');
+});
+
+$('#dayModal').addEventListener('click', (e) => {
+  if (e.target === $('#dayModal')) $('#dayModal').classList.add('hidden');
+});
+
+$('#calToday').addEventListener('click', () => {
+  const now = new Date();
+  calY = now.getFullYear();
+  calM = now.getMonth();
+  renderCalendar();
+});
+
+$('#prevMonth').addEventListener('click', () => {
+  calM--;
+  if (calM < 0) { calM = 11; calY--; }
+  renderCalendar();
+});
+
+$('#nextMonth').addEventListener('click', () => {
+  calM++;
+  if (calM > 11) { calM = 0; calY++; }
+  renderCalendar();
+});
 
 /* ============================================================
    GRÁFICOS
@@ -1006,8 +1679,10 @@ window.addEventListener('resize', () => {
 
 /* Se llama desde auth.js una vez el usuario inició sesión
    (o entró como invitado) y la vista de la app es visible. */
-window.initApp = function () {
+window.initApp = async function () {
+  await syncPull();
   loadData();
+  if (window.syncFirstLogin) syncPushAll();
   buildHabitLinkOptions();
   setMode(timerMode);
   $('#customH').value = Math.floor(timer.customMin / 60);
@@ -1015,7 +1690,12 @@ window.initApp = function () {
   buildPresetChips();
   $('#workMin').value = timer.workMin;
   $('#breakMin').value = timer.breakMin;
+  $('#soundSel').value = soundPref;
+  $('#notifToggle').checked = notifEnabled;
   renderHabits();
+  buildWeekSelects();
   renderWeek();
+  buildCalSelects();
+  renderCalendar();
   renderTimerUi();
 };

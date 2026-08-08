@@ -1,0 +1,7 @@
+# Credenciales (nunca subir a git)
+.env
+
+# Sistema y edición
+.DS_Store
+Thumbs.db
+node_modules/

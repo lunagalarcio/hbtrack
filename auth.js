@@ -11,6 +11,7 @@ function isSupabaseConfigured() {
 function initSupabase() {
   if (!isSupabaseConfigured()) return;
   supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  window.supabaseClient = supabaseClient;
 }
 
 function setAuthMsg(msg, type) {
@@ -140,6 +141,7 @@ $('#logoutBtn').addEventListener('click', async () => {
 
 /* ---------- Arranque ---------- */
 (async function boot() {
+  if (window.SUPABASE_READY) await window.SUPABASE_READY;
   initSupabase();
 
   if (!isSupabaseConfigured()) {

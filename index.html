@@ -69,6 +69,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           <span>Semana</span>
         </button>
+        <button class="tab-btn" data-tab="calendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/></svg>
+          <span>Calendario</span>
+        </button>
         <button class="tab-btn" data-tab="stats">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/></svg>
           <span>Gráficos</span>
@@ -113,63 +117,82 @@
           <h1>Cronómetro</h1>
         </div>
 
-        <div class="timer-modes">
-          <button id="modeNormal" class="mode-btn active">Normal</button>
-          <button id="modePomodoro" class="mode-btn">Pomodoro</button>
-        </div>
+        <div class="timer-layout">
+          <div class="timer-left">
+            <div class="timer-modes">
+              <button id="modeNormal" class="mode-btn active">Normal</button>
+              <button id="modePomodoro" class="mode-btn">Pomodoro</button>
+            </div>
 
-        <div class="timer-card">
-          <div id="timerRing" class="timer-ring">
-            <div class="timer-inner">
-              <span id="timerPhase">Tiempo de estudio</span>
-              <span id="timerDisplay">25:00</span>
-              <span id="timerCycle" class="muted"></span>
+            <div id="timerRing" class="timer-ring">
+              <div class="timer-inner">
+                <span id="timerPhase">Tiempo de estudio</span>
+                <span id="timerDisplay">25:00</span>
+                <span id="timerCycle" class="muted"></span>
+              </div>
+            </div>
+
+            <div class="timer-controls">
+              <button id="startPauseBtn" class="btn btn-primary btn-big">Iniciar</button>
+              <button id="resetBtn" class="btn btn-ghost">Reiniciar</button>
+              <button id="skipBtn" class="btn btn-ghost">Saltar</button>
             </div>
           </div>
 
-          <div class="timer-controls">
-            <button id="startPauseBtn" class="btn btn-primary btn-big">Iniciar</button>
-            <button id="resetBtn" class="btn btn-ghost">Reiniciar</button>
-            <button id="skipBtn" class="btn btn-ghost">Saltar</button>
-          </div>
-
-          <div class="link-box">
-            <label for="linkHabit">Vincular a hábito</label>
-            <select id="linkHabit"></select>
-          </div>
-
-          <div id="normalConfig" class="config-box">
-            <label>Establecer tiempo</label>
-            <div class="config-row">
-              <input type="number" id="customH" min="0" max="24" value="0">
-              <span class="unit">h</span>
-              <input type="number" id="customMin" min="0" max="59" value="25">
-              <span class="unit">min</span>
-              <button id="applyNormal" class="btn btn-primary">Aplicar</button>
+          <div class="timer-right">
+            <div class="link-box">
+              <label for="linkHabit">Vincular a hábito</label>
+              <select id="linkHabit"></select>
             </div>
-            <div id="presetChips" class="preset-chips"></div>
-          </div>
 
-          <div id="pomodoroConfig" class="config-box hidden">
-            <label for="workMin">Trabajo (min)</label>
-            <div class="config-row">
-              <input type="number" id="workMin" min="1" max="180" value="25">
-              <button id="applyPomodoro" class="btn btn-primary">Aplicar</button>
+            <div id="normalConfig" class="config-box">
+              <label>Establecer tiempo</label>
+              <div class="config-row">
+                <input type="number" id="customH" min="0" max="24" value="0">
+                <span class="unit">h</span>
+                <input type="number" id="customMin" min="0" max="59" value="25">
+                <span class="unit">min</span>
+                <button id="applyNormal" class="btn btn-primary">Aplicar</button>
+              </div>
+              <div id="presetChips" class="preset-chips"></div>
             </div>
-            <label for="breakMin">Descanso (min)</label>
-            <div class="config-row">
-              <input type="number" id="breakMin" min="1" max="60" value="5">
-            </div>
-          </div>
 
-          <div id="sessionStats" class="session-stats">
-            <div class="stat">
-              <strong id="todayPomodoros">0</strong>
-              <span>Pomodoros hoy</span>
+            <div id="pomodoroConfig" class="config-box hidden">
+              <label for="workMin">Trabajo (min)</label>
+              <div class="config-row">
+                <input type="number" id="workMin" min="1" max="180" value="25">
+                <button id="applyPomodoro" class="btn btn-primary">Aplicar</button>
+              </div>
+              <label for="breakMin">Descanso (min)</label>
+              <div class="config-row">
+                <input type="number" id="breakMin" min="1" max="60" value="5">
+              </div>
             </div>
-            <div class="stat">
-              <strong id="todayStudyMin">0</strong>
-              <span>Min estudiados hoy</span>
+
+            <div class="config-box" id="alertsConfig">
+              <label>Avisos al terminar</label>
+              <label class="toggle-row">
+                <input type="checkbox" id="notifToggle">
+                <span>Notificación del sistema</span>
+              </label>
+              <label for="soundSel">Sonido</label>
+              <select id="soundSel">
+                <option value="beep">Beep</option>
+                <option value="ding">Ding</option>
+                <option value="chime">Tono largo</option>
+                <option value="none">Ninguno</option>
+              </select>
+            </div>
+
+            <div id="sessionStats" class="session-stats">
+              <div class="stat">
+                <strong id="todayPomodoros">0</strong>
+                <span>Pomodoros hoy</span>
+              </div>
+              <div class="stat">
+                <strong id="todayStudyMin">0</strong>
+                <span>Min estudiados hoy</span>
+              </div>
             </div>
           </div>
         </div>
@@ -179,13 +202,31 @@
         <div class="section-header">
           <h1>Semana</h1>
           <div class="week-nav">
-            <button id="prevWeek" class="btn btn-ghost">← Anterior</button>
+            <button id="prevWeek" class="btn btn-ghost">←</button>
+            <select id="weekSel"></select>
+            <select id="weekMonthSel"></select>
+            <select id="weekYearSel"></select>
+            <button id="nextWeek" class="btn btn-ghost">→</button>
             <span id="weekLabel" class="week-label"></span>
-            <button id="nextWeek" class="btn btn-ghost">Siguiente →</button>
           </div>
         </div>
         <p class="page-desc">Organiza las tareas de cada día de la semana.</p>
         <div id="weekGrid" class="week-grid"></div>
+      </section>
+
+      <section id="tab-calendar" class="tab-content">
+        <div class="section-header">
+          <h1>Calendario</h1>
+          <div class="week-nav">
+            <button id="prevMonth" class="btn btn-ghost">←</button>
+            <select id="calMonth"></select>
+            <select id="calYear"></select>
+            <button id="nextMonth" class="btn btn-ghost">→</button>
+            <button id="calToday" class="btn btn-ghost">Hoy</button>
+          </div>
+        </div>
+        <p class="page-desc">Toca un día para marcarlo. Los días con tareas o hábitos completados se muestran automáticamente.</p>
+        <div id="calendarGrid" class="calendar-grid"></div>
       </section>
 
       <section id="tab-stats" class="tab-content">
@@ -217,7 +258,7 @@
   <!-- ============ MODAL AÑADIR HÁBITO ============ -->
   <div id="habitModal" class="modal-overlay hidden">
     <div class="modal">
-      <h3>Nuevo hábito</h3>
+      <h3 id="habitModalTitle">Nuevo hábito</h3>
       <label for="habitName">Nombre</label>
       <input type="text" id="habitName" maxlength="40" placeholder="Ej: Leer 20 min">
       <label for="habitTargetMin">Meta de tiempo por día (min)</label>
@@ -227,6 +268,26 @@
       <div class="modal-actions">
         <button id="cancelHabit" class="btn btn-ghost">Cancelar</button>
         <button id="saveHabit" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL DÍA (calendario) ============ -->
+  <div id="dayModal" class="modal-overlay hidden">
+    <div class="modal">
+      <h3 id="dayModalTitle">Día</h3>
+      <label class="day-mark-row">
+        <input type="checkbox" id="dayMarked">
+        <span>Marcar este día</span>
+      </label>
+      <label>Cosas importantes</label>
+      <div id="dayNotes" class="day-notes"></div>
+      <div class="task-add-row">
+        <input type="text" id="dayNoteInput" maxlength="80" placeholder="Escribe algo importante...">
+        <button id="addDayNote" title="Añadir">+</button>
+      </div>
+      <div class="modal-actions">
+        <button id="closeDayModal" class="btn btn-ghost">Cerrar</button>
       </div>
     </div>
   </div>
