@@ -166,7 +166,16 @@ function syncPushAll() {
     'reminderEnabled', 'reminderTime', 'reminderLastSent', 'statsRange', 'accent', 'timetable', 'habitFilter', 'goals'];
   keys.forEach((k) => {
     try {
-      const raw = localStorage.getItem(syncKeyPrefix() + k);
+      let raw = localStorage.getItem(syncKeyPrefix() + k);
+      if (raw === null) {
+        // Datos creados en modo invitado (claves sin prefijo de usuario):
+        // se migran al prefijo del usuario para poder subirlos a la nube.
+        const guest = localStorage.getItem(k);
+        if (guest !== null) {
+          raw = guest;
+          localStorage.setItem(syncKeyPrefix() + k, guest);
+        }
+      }
       if (raw !== null) {
         window.syncPending[k] = { v: JSON.parse(raw), ts: localTs(k) || Date.now() };
       }
