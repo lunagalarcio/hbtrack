@@ -1,8 +1,8 @@
-# HabiTrack 🎯
+# HabiTrack
 
 Aplicación web progresiva (PWA) de estudio y hábitos, construida con HTML, CSS y JavaScript puro (sin frameworks). Organiza tus hábitos, clases, tareas, cronómetros Pomodoro y metas en un solo lugar, y sincroniza tus datos en la nube con Supabase.
 
-## ✨ Funciones
+## Funciones
 
 - **Hábitos diarios**: crea hábitos con meta de tiempo, categoría, color y días de la semana; márcalos cada día.
 - **Cronómetro**: modo normal y modo Pomodoro con notificaciones, sonidos y estadísticas de sesión.
@@ -15,7 +15,7 @@ Aplicación web progresiva (PWA) de estudio y hábitos, construida con HTML, CSS
 - **Sincronización en la nube**: tus datos se guardan localmente (localStorage) y se sincronizan con Supabase.
 - **Instalable (PWA)**: funciona offline y se puede instalar en el teléfono.
 
-## 🚀 Cómo empezar
+## Cómo empezar
 
 ### Requisitos
 
@@ -53,7 +53,7 @@ python -m http.server 3000
 
 Luego abre `http://localhost:3000`.
 
-## ☁️ Despliegue en Vercel
+## Despliegue en Vercel
 
 1. Sube el repositorio a GitHub e importa el proyecto en [Vercel](https://vercel.com).
 2. Añade estas variables de entorno en Vercel:
@@ -65,7 +65,7 @@ Luego abre `http://localhost:3000`.
 
 > Nota: Vercel no sirve el archivo `.env` (está en `.gitignore`). Sin las variables de entorno, la app funciona en modo invitado (sin sincronización).
 
-## 🧠 Cómo funciona la sincronización
+## Cómo funciona la sincronización
 
 - Los datos se guardan en `localStorage` con prefijo por usuario (`<userId>_habits`, etc.).
 - Cada guardado registra su `updated_at` local y se encola para subirse a Supabase (tabla `user_data`).
@@ -73,7 +73,7 @@ Luego abre `http://localhost:3000`.
 - Los datos creados como invitado se migran al prefijo del usuario en el primer inicio de sesión.
 - Los cambios hechos sin conexión se guardan en una cola de pendientes y se reintentan automáticamente.
 
-## 🗂️ Estructura del proyecto
+## Estructura del proyecto
 
 ```
 ├── index.html            # Interfaz principal
@@ -99,6 +99,6 @@ Luego abre `http://localhost:3000`.
 └── sw.js                 # Service Worker (PWA/offline)
 ```
 
-## 📄 Licencia
+## Licencia
 
 Todos los derechos reservados. Ver [LICENSE](LICENSE).
