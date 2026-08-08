@@ -3,7 +3,7 @@
    Caché de la app para funcionar offline e instalable (PWA).
    ============================================================ */
 
-const CACHE = 'hbtrack-v13';
+const CACHE = 'hbtrack-v14';
 
 /* Núcleo de la app: obligatorio para instalar */
 const CORE = [
@@ -20,6 +20,8 @@ const CORE = [
   './js/calendar.js',
   './js/timetable.js',
   './js/stats.js',
+  './js/dashboard.js',
+  './js/goals.js',
   './js/app.js',
   './js/auth.js',
   './manifest.webmanifest',
