@@ -3,7 +3,7 @@
    Caché de la app para funcionar offline e instalable (PWA).
    ============================================================ */
 
-const CACHE = 'hbtrack-v18';
+const CACHE = 'hbtrack-v19';
 
 /* Núcleo de la app: obligatorio para instalar */
 const CORE = [
@@ -25,9 +25,8 @@ const CORE = [
   './js/app.js',
   './js/auth.js',
   './manifest.webmanifest',
-  './icons/icon.svg',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon.png',
+  './icons/icon.svg'
 ];
 
 self.addEventListener('install', (event) => {
