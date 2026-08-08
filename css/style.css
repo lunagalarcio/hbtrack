@@ -2219,17 +2219,8 @@ body {
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 40;
     background: var(--sidebar-bg);
     border-bottom: 1px solid var(--border);
-  }
-
-  .content {
-    padding-top: 74px;
   }
 
   #mobileHeader .brand {
