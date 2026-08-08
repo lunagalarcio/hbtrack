@@ -3,7 +3,7 @@
    Caché de la app para funcionar offline e instalable (PWA).
    ============================================================ */
 
-const CACHE = 'hbtrack-v14';
+const CACHE = 'hbtrack-v15';
 
 /* Núcleo de la app: obligatorio para instalar */
 const CORE = [

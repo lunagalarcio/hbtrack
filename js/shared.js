@@ -144,6 +144,7 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   document.querySelector('#themeToggle .theme-label').textContent = theme === 'dark' ? 'Oscuro' : 'Claro';
   store.set('theme', theme);
+  applyAccentShades();
   if ($('#tab-stats').classList.contains('active')) renderStats();
   if ($('#tab-goals').classList.contains('active')) renderGoals();
 }
@@ -157,10 +158,42 @@ function initTheme() {
 /* ---------- Color de acento ---------- */
 let accentColor = '';
 
+/* Convierte un color hex (#rrggbb) a [r, g, b] */
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+
+/* Mezcla base hacia target con peso (0..1) y devuelve hex */
+function mixHex(base, target, weight) {
+  const a = hexToRgb(base);
+  const b = hexToRgb(target);
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * weight));
+  return '#' + c.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+}
+
+/* Deriva las sombras del acento elegido (light/dark) para que
+   --primary-2 y --primary-soft ya no sean siempre azules. */
+function applyAccentShades() {
+  const root = document.documentElement;
+  const dark = root.getAttribute('data-theme') === 'dark';
+  if (!accentColor) {
+    root.style.removeProperty('--accent');
+    root.style.removeProperty('--primary-2');
+    root.style.removeProperty('--primary-soft');
+    return;
+  }
+  const base = accentColor;
+  // En modo oscuro el acento se oscurece para que combine con el fondo
+  const accent = dark ? mixHex(base, '#000000', 0.18) : base;
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--primary-2', mixHex(accent, '#ffffff', dark ? 0.22 : 0.3));
+  root.style.setProperty('--primary-soft', mixHex(base, dark ? '#191919' : '#ffffff', dark ? 0.86 : 0.86));
+}
+
 function applyAccent(color, persist = true) {
   accentColor = color || '';
-  if (accentColor) document.documentElement.style.setProperty('--accent', accentColor);
-  else document.documentElement.style.removeProperty('--accent');
+  applyAccentShades();
   $$('.accent-swatch').forEach((b) => {
     b.classList.toggle('selected', (b.dataset.accent || '') === accentColor);
   });
@@ -181,6 +214,7 @@ $('#themeToggle').addEventListener('click', () => {
 /* ---------- Navegación por pestañas ---------- */
 $$('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
+    closeMobileMenu();
     $$('.tab-btn').forEach((b) => b.classList.remove('active'));
     $$('.tab-content').forEach((c) => c.classList.remove('active'));
     btn.classList.add('active');

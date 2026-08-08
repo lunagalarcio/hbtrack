@@ -6,6 +6,27 @@
 
 initTheme();
 
+/* ---------- Menú móvil (cajón de la sidebar) ---------- */
+function openMobileMenu() {
+  document.querySelector('.sidebar').classList.add('open');
+  document.querySelector('.sidebar-backdrop').classList.add('open');
+}
+
+function closeMobileMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.querySelector('.sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+$('#mobileMenuBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.querySelector('.sidebar-backdrop').classList.toggle('open');
+});
+
+document.querySelector('.sidebar-backdrop').addEventListener('click', closeMobileMenu);
+
 window.addEventListener('resize', () => {
   if ($('#tab-stats').classList.contains('active')) renderStats();
   if ($('#tab-goals').classList.contains('active')) renderGoals();
