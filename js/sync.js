@@ -163,7 +163,7 @@ function syncPushAll() {
   const keys = ['habits', 'habitChecks', 'weekTasks', 'studyLog', 'pomodoroDays',
     'habitTime', 'calendarMarks', 'calendarNotes', 'timerMode', 'workMin', 'breakMin', 'customMin',
     'recurringTasks', 'recurringDone', 'soundPref', 'timerNotif',
-    'reminderEnabled', 'reminderTime', 'reminderLastSent', 'statsRange', 'accent', 'timetable', 'habitFilter', 'goals'];
+    'reminderEnabled', 'reminderTime', 'reminderLastSent', 'statsRange', 'accent', 'timetable', 'habitFilter', 'goals', 'theme'];
   keys.forEach((k) => {
     try {
       let raw = localStorage.getItem(syncKeyPrefix() + k);
