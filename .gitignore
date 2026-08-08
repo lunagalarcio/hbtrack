@@ -1,5 +1,6 @@
 # Credenciales (nunca subir a git)
 .env
+.env.local
 
 # Sistema y edición
 .DS_Store

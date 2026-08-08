@@ -42,8 +42,8 @@ window.SUPABASE_READY = (async function () {
     const res = await fetch('.env');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const env = parseEnv(await res.text());
-    window.SUPABASE_URL = env.SUPABASE_URL || '';
-    window.SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY || '';
+    window.SUPABASE_URL = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
+    window.SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '';
     if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
       console.warn('Faltan credenciales en .env. La app usará el modo invitado.');
     }
