@@ -115,6 +115,7 @@ function renderWeek() {
             delete habitChecks[task.habitId][key];
           }
           saveChecks();
+          checkGoals();
           if ($('#tab-habits').classList.contains('active')) renderHabits();
         }
         renderWeek();

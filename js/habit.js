@@ -27,20 +27,32 @@ function toggleCheck(habitId, key) {
     return;
   }
   if (!habitChecks[habitId]) habitChecks[habitId] = {};
-  habitChecks[habitId][key] = !habitChecks[habitId][key];
-  if (!habitChecks[habitId][key]) delete habitChecks[habitId][key];
+  const becoming = !habitChecks[habitId][key];
+  habitChecks[habitId][key] = becoming;
+  if (!becoming) delete habitChecks[habitId][key];
   saveChecks();
+  checkGoals();
   renderHabits();
+  if (becoming && allDueDoneToday()) {
+    burstConfetti();
+    toast('¡Completaste todos tus hábitos hoy! 🎉');
+  }
   if ($('#tab-stats').classList.contains('active')) renderStats();
 }
 
 function renderHabits() {
   const list = $('#habitList');
   const empty = $('#habitsEmpty');
+  const shown = habitFilter === 'Todos' ? habits : habits.filter((h) => h.category === habitFilter);
   list.innerHTML = '';
-  empty.classList.toggle('hidden', habits.length > 0);
+  empty.classList.toggle('hidden', shown.length > 0);
+  if (shown.length === 0) {
+    empty.textContent = habits.length === 0
+      ? 'Aún no tienes hábitos. Añade el primero para empezar a hacer seguimiento.'
+      : `Sin hábitos en "${habitFilter}".`;
+  }
 
-  habits.forEach((habit) => {
+  shown.forEach((habit) => {
     const card = document.createElement('div');
     card.className = 'habit-card';
 
@@ -65,10 +77,14 @@ function renderHabits() {
 
     const info = document.createElement('div');
     info.className = 'habit-info';
-    info.append(
-      Object.assign(document.createElement('h3'), { textContent: habit.name }),
-      streakEl
-    );
+    info.append(Object.assign(document.createElement('h3'), { textContent: habit.name }));
+    if (habit.category) {
+      info.append(Object.assign(document.createElement('span'), {
+        className: 'cat-badge',
+        textContent: habit.category
+      }));
+    }
+    info.appendChild(streakEl);
 
     const daysWrap = document.createElement('div');
     daysWrap.className = 'habit-days';
@@ -92,11 +108,13 @@ function renderHabits() {
       delete habitTime[habit.id];
       recurringTasks.filter((t) => t.habitId === habit.id).forEach((t) => delete recurringDone[t.id]);
       recurringTasks = recurringTasks.filter((t) => t.habitId !== habit.id);
+      goals = goals.filter((g) => g.habitId !== habit.id);
       saveHabits();
       saveChecks();
       saveHabitTime();
       saveRecurringTasks();
       saveRecurringDone();
+      saveGoals();
       buildHabitLinkOptions();
       if (timer.mode === 'normal') loadLinkedNormal();
       renderHabits();
@@ -113,13 +131,14 @@ function renderHabits() {
 
     if (habit.targetMin > 0) {
       const todayMin = trackedMinutes(habit.id);
-      const pct = Math.min(100, (todayMin / habit.targetMin) * 100);
+      const rawPct = (todayMin / habit.targetMin) * 100;
+      const pct = Math.min(100, rawPct);
       const prog = document.createElement('div');
       prog.className = 'habit-progress';
       const row = document.createElement('div');
       row.className = 'habit-progress-label';
       const left = Object.assign(document.createElement('span'), { textContent: formatDuration(todayMin) });
-      const right = Object.assign(document.createElement('span'), { textContent: `Meta: ${formatDuration(habit.targetMin)}` });
+      const right = Object.assign(document.createElement('span'), { textContent: `Meta: ${formatDuration(habit.targetMin)}${rawPct >= 100 ? ' 🎉' : ''}` });
       row.append(left, right);
       const bar = document.createElement('div');
       bar.className = 'habit-progress-bar';
@@ -133,6 +152,27 @@ function renderHabits() {
 
     list.appendChild(card);
   });
+}
+
+/* Filtro por tipo de hábito */
+function buildHabitFilter() {
+  const wrap = $('#habitFilterWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const addChip = (label, value) => {
+    const chip = document.createElement('button');
+    chip.className = 'filter-chip' + (habitFilter === value ? ' active' : '');
+    chip.textContent = label;
+    chip.addEventListener('click', () => {
+      habitFilter = value;
+      store.set('habitFilter', habitFilter);
+      buildHabitFilter();
+      renderHabits();
+    });
+    wrap.appendChild(chip);
+  };
+  addChip('Todos', 'Todos');
+  HABIT_CATEGORIES.forEach((c) => addChip(c, c));
 }
 
 /* Modal añadir/editar hábito */
@@ -165,6 +205,7 @@ function openHabitModal(habitId) {
   $('#saveHabit').textContent = editingHabitId ? 'Guardar cambios' : 'Guardar';
   $('#habitName').value = h ? h.name : '';
   $('#habitTargetMin').value = h && h.targetMin > 0 ? h.targetMin : '';
+  $('#habitCategory').value = h && h.category ? h.category : '';
   selectedColor = h ? h.color : HABIT_COLORS[0];
   selectedDays = h && h.days && h.days.length ? h.days.slice() : [0, 1, 2, 3, 4, 5, 6];
   $('#habitModal').classList.remove('hidden');
@@ -219,6 +260,7 @@ $('#saveHabit').addEventListener('click', () => {
       h.color = selectedColor;
       h.targetMin = targetMin;
       h.days = days;
+      h.category = $('#habitCategory').value;
       saveHabits();
       buildHabitLinkOptions();
       if (timer.mode === 'normal') loadLinkedNormal();
@@ -232,7 +274,7 @@ $('#saveHabit').addEventListener('click', () => {
     return;
   }
 
-  habits.push({ id: uid(), name, color: selectedColor, targetMin, days });
+  habits.push({ id: uid(), name, color: selectedColor, targetMin, days, category: $('#habitCategory').value });
   saveHabits();
   buildHabitLinkOptions();
   closeHabitModal();

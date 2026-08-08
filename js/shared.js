@@ -16,6 +16,8 @@ const HABIT_COLORS = [
   '#64748b', '#475569', '#334155', '#1e293b', '#78350f', '#831843', '#6d28d9', '#4f46e5', '#9333ea', '#a16207'
 ];
 
+const HABIT_CATEGORIES = ['Estudio', 'Dieta', 'Deportes', 'Autocuidado'];
+
 /* ---------- Utilidades de fecha ---------- */
 function dateKey(d = new Date()) {
   const y = d.getFullYear();
@@ -76,6 +78,7 @@ function formatDuration(min) {
 
 /* ---------- Estado de la aplicación ---------- */
 let habits = [];
+let habitFilter = 'Todos';
 let habitChecks = {};
 let weekTasks = {};
 let studyLog = [];
@@ -83,14 +86,17 @@ let pomodoroDays = {};
 let habitTime = {};
 let calendarMarks = {};
 let calendarNotes = {};
+let timetable = [];
 let timerMode = 'normal';
 let recurringTasks = [];
 let recurringDone = {};
+let goals = [];
 let soundPref = 'beep';
 let notifEnabled = false;
 
 function loadData() {
   habits = store.get('habits', []);
+  habitFilter = store.get('habitFilter', 'Todos');
   habitChecks = store.get('habitChecks', {});
   weekTasks = store.get('weekTasks', {});
   studyLog = store.get('studyLog', []);
@@ -98,8 +104,10 @@ function loadData() {
   habitTime = store.get('habitTime', {});
   calendarMarks = store.get('calendarMarks', {});
   calendarNotes = store.get('calendarNotes', {});
+  timetable = store.get('timetable', []);
   recurringTasks = store.get('recurringTasks', []);
   recurringDone = store.get('recurringDone', {});
+  goals = store.get('goals', []);
   soundPref = store.get('soundPref', 'beep');
   notifEnabled = store.get('timerNotif', false);
   timerMode = store.get('timerMode', 'normal');
@@ -119,6 +127,7 @@ function saveCalendarMarks() { store.set('calendarMarks', calendarMarks); }
 function saveCalendarNotes() { store.set('calendarNotes', calendarNotes); }
 function saveRecurringTasks() { store.set('recurringTasks', recurringTasks); }
 function saveRecurringDone() { store.set('recurringDone', recurringDone); }
+function saveGoals() { store.set('goals', goals); }
 
 /* ---------- Toast ---------- */
 let toastTimer = null;
@@ -136,6 +145,7 @@ function applyTheme(theme) {
   document.querySelector('#themeToggle .theme-label').textContent = theme === 'dark' ? 'Oscuro' : 'Claro';
   store.set('theme', theme);
   if ($('#tab-stats').classList.contains('active')) renderStats();
+  if ($('#tab-goals').classList.contains('active')) renderGoals();
 }
 
 function initTheme() {
@@ -156,6 +166,7 @@ function applyAccent(color, persist = true) {
   });
   if (persist) store.set('accent', accentColor);
   if ($('#tab-stats').classList.contains('active')) renderStats();
+  if ($('#tab-goals').classList.contains('active')) renderGoals();
 }
 
 $$('.accent-swatch').forEach((btn) => {
@@ -174,9 +185,12 @@ $$('.tab-btn').forEach((btn) => {
     $$('.tab-content').forEach((c) => c.classList.remove('active'));
     btn.classList.add('active');
     $(`#tab-${btn.dataset.tab}`).classList.add('active');
+    if (btn.dataset.tab === 'dashboard') renderDashboard();
+    if (btn.dataset.tab === 'goals') renderGoals();
     if (btn.dataset.tab === 'stats') renderStats();
     if (btn.dataset.tab === 'timer') renderTimerUi();
     if (btn.dataset.tab === 'week') renderWeek();
+    if (btn.dataset.tab === 'timetable') renderTimetable();
     if (btn.dataset.tab === 'calendar') renderCalendar();
   });
 });

@@ -8,6 +8,7 @@ initTheme();
 
 window.addEventListener('resize', () => {
   if ($('#tab-stats').classList.contains('active')) renderStats();
+  if ($('#tab-goals').classList.contains('active')) renderGoals();
 });
 
 /* Se llama desde auth.js una vez el usuario inició sesión
@@ -30,9 +31,13 @@ window.initApp = async function () {
   $('#notifToggle').checked = notifEnabled;
   initReminders();
   renderHabits();
+  buildHabitFilter();
   buildWeekSelects();
   renderWeek();
+  renderTimetable();
   buildCalSelects();
   renderCalendar();
   renderTimerUi();
+  renderDashboard();
+  renderGoals();
 };
