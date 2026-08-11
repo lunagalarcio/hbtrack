@@ -162,8 +162,10 @@ function syncPushAll() {
   if (!uid || !window.supabaseClient || !window.syncReady) return;
   const keys = ['habits', 'habitChecks', 'weekTasks', 'studyLog', 'pomodoroDays',
     'habitTime', 'calendarMarks', 'calendarNotes', 'timerMode', 'workMin', 'breakMin', 'customMin',
+    'extraTimeEnabled',
     'recurringTasks', 'recurringDone', 'soundPref', 'timerNotif',
-    'reminderEnabled', 'reminderTime', 'reminderLastSent', 'statsRange', 'accent', 'timetable', 'habitFilter', 'goals', 'theme'];
+    'reminderEnabled', 'reminderTime', 'reminderLastSent', 'pendingEnabled', 'pendingTime', 'pendingLastSent',
+    'statsRange', 'accent', 'timetable', 'habitFilter', 'goals', 'theme', 'boardPosts'];
   keys.forEach((k) => {
     try {
       let raw = localStorage.getItem(syncKeyPrefix() + k);

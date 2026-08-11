@@ -188,7 +188,7 @@ function renderTimerUi() {
     : (timer.mode === 'pomodoro'
       ? `Pomodoro ${timer.phase === 'work' ? '· Trabajo' : '· Descanso'}`
       : '');
-  $('#startPauseBtn').disabled = !timer.running && timer.remainingMs <= 0 && link && link.targetMin > 0;
+  $('#startPauseBtn').disabled = !timer.running && timer.remainingMs <= 0 && link && link.targetMin > 0 && !extraTimeEnabled;
 
   const pct = timer.totalMs > 0 ? (1 - timer.remainingMs / timer.totalMs) * 100 : 0;
   $('#timerRing').style.background = `conic-gradient(var(--primary) ${pct}%, var(--ring-track) ${pct}%)`;
@@ -206,7 +206,7 @@ function studyMinToday() {
 }
 
 function startTimer() {
-  if (timer.remainingMs <= 0 && timer.mode === 'normal' && linkedHabit() && linkedHabit().targetMin > 0) {
+  if (!extraTimeEnabled && timer.remainingMs <= 0 && timer.mode === 'normal' && linkedHabit() && linkedHabit().targetMin > 0) {
     toast('La meta de hoy ya está cumplida');
     return;
   }
@@ -349,16 +349,24 @@ function loadLinkedNormal() {
     const targetMs = h.targetMin > 0 ? h.targetMin * 60000 : timer.customMin * 60000;
     const doneMs = h.targetMin > 0 ? trackedMinutes(h.id) * 60000 : 0;
     const rem = Math.max(targetMs - doneMs, 0);
-    timer.totalMs = rem > 0 ? rem : targetMs;
-    timer.remainingMs = rem;
-    if (h.targetMin > 0) {
-      if (rem <= 0) {
-        toast('Ya cumpliste la meta de hoy para este hábito');
-      } else {
-        toast(`Meta ${formatDuration(h.targetMin)} · Faltan ${formatDuration(rem / 60000)}`);
-      }
+    if (extraTimeEnabled) {
+      timer.totalMs = timer.customMin * 60000;
+      timer.remainingMs = timer.totalMs;
+      toast(rem <= 0
+        ? `Tiempo extra para "${h.name}" · ${formatDuration(timer.customMin)}`
+        : `Meta ${formatDuration(h.targetMin)} · Faltan ${formatDuration(rem / 60000)} · Tiempo extra disponible`);
     } else {
-      toast(`Vinculado a "${h.name}" · ${formatDuration(rem / 60000)}`);
+      timer.totalMs = rem > 0 ? rem : targetMs;
+      timer.remainingMs = rem;
+      if (h.targetMin > 0) {
+        if (rem <= 0) {
+          toast('Ya cumpliste la meta de hoy para este hábito');
+        } else {
+          toast(`Meta ${formatDuration(h.targetMin)} · Faltan ${formatDuration(rem / 60000)}`);
+        }
+      } else {
+        toast(`Vinculado a "${h.name}" · ${formatDuration(rem / 60000)}`);
+      }
     }
   }
   saveTimerState();
@@ -537,6 +545,13 @@ $('#applyNormal').addEventListener('click', () => {
 
 $('#linkHabit').addEventListener('change', () => {
   if (timer.mode === 'normal') loadLinkedNormal();
+});
+
+$('#extraTimeToggle').addEventListener('change', (e) => {
+  extraTimeEnabled = e.target.checked;
+  store.set('extraTimeEnabled', extraTimeEnabled);
+  if (timer.mode === 'normal' && linkedHabit()) loadLinkedNormal();
+  toast(extraTimeEnabled ? 'Tiempo extra permitido para el hábito' : 'Tiempo extra desactivado');
 });
 
 $('#applyPomodoro').addEventListener('click', () => {

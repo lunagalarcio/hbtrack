@@ -50,6 +50,7 @@ window.initApp = async function () {
   $('#breakMin').value = timer.breakMin;
   $('#soundSel').value = soundPref;
   $('#notifToggle').checked = notifEnabled;
+  $('#extraTimeToggle').checked = extraTimeEnabled;
   initReminders();
   renderHabits();
   buildHabitFilter();
@@ -58,6 +59,7 @@ window.initApp = async function () {
   renderTimetable();
   buildCalSelects();
   renderCalendar();
+  renderBoard();
   renderTimerUi();
   renderDashboard();
   renderGoals();

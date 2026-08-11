@@ -73,7 +73,8 @@ function renderTimetable() {
   }
   wrap.appendChild(timeCol);
 
-  for (let d = 0; d < 7; d++) {
+  /* Lun (0) a Vie (4): el horario solo cubre la semana lectiva */
+  for (let d = 0; d < 5; d++) {
     const col = document.createElement('div');
     col.className = 'tt-daycol';
     col.style.height = totalH + 'px';

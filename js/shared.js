@@ -88,9 +88,11 @@ let calendarMarks = {};
 let calendarNotes = {};
 let timetable = [];
 let timerMode = 'normal';
+let extraTimeEnabled = false;
 let recurringTasks = [];
 let recurringDone = {};
 let goals = [];
+let boardPosts = [];
 let soundPref = 'beep';
 let notifEnabled = false;
 
@@ -108,9 +110,11 @@ function loadData() {
   recurringTasks = store.get('recurringTasks', []);
   recurringDone = store.get('recurringDone', {});
   goals = store.get('goals', []);
+  boardPosts = store.get('boardPosts', []);
   soundPref = store.get('soundPref', 'beep');
   notifEnabled = store.get('timerNotif', false);
   timerMode = store.get('timerMode', 'normal');
+  extraTimeEnabled = store.get('extraTimeEnabled', false);
   statsRange = store.get('statsRange', 7);
   timer.workMin = store.get('workMin', 25);
   timer.breakMin = store.get('breakMin', 5);
@@ -128,6 +132,7 @@ function saveCalendarNotes() { store.set('calendarNotes', calendarNotes); }
 function saveRecurringTasks() { store.set('recurringTasks', recurringTasks); }
 function saveRecurringDone() { store.set('recurringDone', recurringDone); }
 function saveGoals() { store.set('goals', goals); }
+function saveBoard() { store.set('boardPosts', boardPosts); }
 
 /* ---------- Toast ---------- */
 let toastTimer = null;
@@ -226,5 +231,6 @@ $$('.tab-btn').forEach((btn) => {
     if (btn.dataset.tab === 'week') renderWeek();
     if (btn.dataset.tab === 'timetable') renderTimetable();
     if (btn.dataset.tab === 'calendar') renderCalendar();
+    if (btn.dataset.tab === 'board') renderBoard();
   });
 });
