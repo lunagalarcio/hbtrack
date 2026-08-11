@@ -666,6 +666,10 @@ body {
   gap: 8px;
 }
 
+.reminders-wrap {
+  max-width: 460px;
+}
+
 .link-box label,
 .config-box label {
   font-size: 0.8rem;
@@ -915,6 +919,16 @@ body {
 .task-text {
   flex: 1;
   word-break: break-word;
+}
+
+.task-min {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: var(--card-2);
+  border-radius: 5px;
+  padding: 1px 6px;
+  white-space: nowrap;
 }
 
 .task-del {

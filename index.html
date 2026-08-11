@@ -111,6 +111,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/></svg>
           <span>Estadísticas</span>
         </button>
+        <button class="tab-btn" data-tab="reminders">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span>Recordatorios</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -224,6 +228,7 @@
             <div class="timer-modes">
               <button id="modeNormal" class="mode-btn active">Normal</button>
               <button id="modePomodoro" class="mode-btn">Pomodoro</button>
+              <button id="modeLibre" class="mode-btn">Libre</button>
             </div>
 
             <div id="timerRing" class="timer-ring">
@@ -245,6 +250,8 @@
             <div class="link-box">
               <label for="linkHabit">Vincular a hábito</label>
               <select id="linkHabit"></select>
+              <label for="linkTask">Vincular a tarea de la semana</label>
+              <select id="linkTask"></select>
               <label class="toggle-row">
                 <input type="checkbox" id="extraTimeToggle">
                 <span>Permitir tiempo extra</span>
@@ -288,26 +295,6 @@
                 <option value="chime">Tono largo</option>
                 <option value="none">Ninguno</option>
               </select>
-            </div>
-
-            <div class="config-box" id="reminderConfig">
-              <label>Recordatorio diario</label>
-              <label class="toggle-row">
-                <input type="checkbox" id="reminderToggle">
-                <span>Recordar mis hábitos</span>
-              </label>
-              <label for="reminderTime">Hora</label>
-              <input type="time" id="reminderTime" value="20:00">
-            </div>
-
-            <div class="config-box" id="pendingConfig">
-              <label>Recordar pendientes</label>
-              <label class="toggle-row">
-                <input type="checkbox" id="pendingToggle">
-                <span>Hábitos y tareas del día</span>
-              </label>
-              <label for="pendingTime">Hora</label>
-              <input type="time" id="pendingTime" value="19:00">
             </div>
 
             <div id="sessionStats" class="session-stats">
@@ -427,6 +414,35 @@
         <div class="chart-card">
           <h3 id="rateTitle">Porcentaje de cumplimiento por hábito</h3>
           <div class="chart-wrap"><canvas id="chartHabitRate"></canvas></div>
+        </div>
+      </section>
+
+      <section id="tab-reminders" class="tab-content">
+        <div class="section-header">
+          <h1>Recordatorios</h1>
+        </div>
+        <p class="page-desc">Recibe notificaciones una vez al día con la app abierta.</p>
+
+        <div class="reminders-wrap">
+          <div class="config-box">
+            <label>Recordatorio diario</label>
+            <label class="toggle-row">
+              <input type="checkbox" id="reminderToggle">
+              <span>Recordar mis hábitos</span>
+            </label>
+            <label for="reminderTime">Hora</label>
+            <input type="time" id="reminderTime" value="20:00">
+          </div>
+
+          <div class="config-box">
+            <label>Recordar pendientes</label>
+            <label class="toggle-row">
+              <input type="checkbox" id="pendingToggle">
+              <span>Hábitos y tareas del día</span>
+            </label>
+            <label for="pendingTime">Hora</label>
+            <input type="time" id="pendingTime" value="19:00">
+          </div>
         </div>
       </section>
 

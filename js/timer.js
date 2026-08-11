@@ -57,6 +57,7 @@ const timer = {
   phase: 'study', // study | work | break
   remainingMs: 25 * 60000,
   totalMs: 25 * 60000,
+  lastCommittedMs: 25 * 60000,
   running: false,
   lastTick: 0,
   interval: null,
@@ -77,6 +78,7 @@ function saveTimerState() {
       phase: timer.phase,
       remainingMs: timer.remainingMs,
       totalMs: timer.totalMs,
+      lastCommittedMs: timer.lastCommittedMs,
       running: timer.running,
       lastTick: timer.lastTick || Date.now()
     }));
@@ -91,25 +93,34 @@ function maybeSaveTimer() {
   }
 }
 
+function resetRemainingMs() {
+  timer.remainingMs = timer.totalMs;
+  timer.lastCommittedMs = timer.totalMs;
+}
+
 function restoreTimerState() {
   const saved = store.get('timerState', null);
   if (!saved) return false;
 
-  timer.mode = saved.mode === 'pomodoro' ? 'pomodoro' : 'normal';
+  timer.mode = saved.mode === 'pomodoro' ? 'pomodoro' : (saved.mode === 'libre' ? 'libre' : 'normal');
   timer.phase = saved.phase === 'break' ? 'break' : (saved.phase === 'work' ? 'work' : 'study');
   timerMode = timer.mode;
-  timer.totalMs = saved.totalMs > 0 ? saved.totalMs : timer.totalMs;
+  timer.totalMs = timer.mode === 'libre' ? 0 : (saved.totalMs > 0 ? saved.totalMs : timer.totalMs);
+  const savedLast = (typeof saved.lastCommittedMs === 'number') ? saved.lastCommittedMs : timer.totalMs;
+  timer.lastCommittedMs = Math.min(Math.max(savedLast, 0), timer.totalMs);
   timer.remainingMs = saved.remainingMs > 0 ? saved.remainingMs : 0;
 
   $('#modeNormal').classList.toggle('active', timer.mode === 'normal');
   $('#modePomodoro').classList.toggle('active', timer.mode === 'pomodoro');
+  $('#modeLibre').classList.toggle('active', timer.mode === 'libre');
   $('#normalConfig').classList.toggle('hidden', timer.mode !== 'normal');
   $('#pomodoroConfig').classList.toggle('hidden', timer.mode !== 'pomodoro');
 
   if (saved.running) {
     const elapsed = Date.now() - (saved.lastTick || Date.now());
-    timer.remainingMs = Math.max(0, timer.remainingMs - elapsed);
-    if (timer.remainingMs > 0) {
+    if (timer.mode === 'libre') timer.remainingMs += elapsed;
+    else timer.remainingMs = Math.max(0, timer.remainingMs - elapsed);
+    if (timer.mode === 'libre' || timer.remainingMs > 0) {
       timer.running = true;
       timer.lastTick = Date.now();
       timer.interval = setInterval(tick, 250);
@@ -124,13 +135,15 @@ function restoreTimerState() {
         savePomodoro();
         timer.phase = 'break';
         timer.totalMs = timer.breakMin * 60000;
-        timer.remainingMs = timer.totalMs;
+        resetRemainingMs();
       } else {
-        timer.remainingMs = timer.totalMs;
+        resetRemainingMs();
       }
       timer.running = false;
       toast('Tu sesión se completó mientras no estabas');
     }
+  } else if (timer.mode === 'libre' || timer.remainingMs <= 0) {
+    resetRemainingMs();
   }
   saveTimerState();
   renderTimerUi();
@@ -144,6 +157,7 @@ function setMode(mode) {
   store.set('timerMode', mode);
   $('#modeNormal').classList.toggle('active', mode === 'normal');
   $('#modePomodoro').classList.toggle('active', mode === 'pomodoro');
+  $('#modeLibre').classList.toggle('active', mode === 'libre');
   $('#normalConfig').classList.toggle('hidden', mode !== 'normal');
   $('#pomodoroConfig').classList.toggle('hidden', mode !== 'pomodoro');
   stopTimer();
@@ -154,11 +168,14 @@ function setMode(mode) {
       return;
     }
     timer.totalMs = timer.customMin * 60000;
+  } else if (mode === 'libre') {
+    timer.phase = 'study';
+    timer.totalMs = 0;
   } else {
     timer.phase = 'work';
     timer.totalMs = timer.workMin * 60000;
   }
-  timer.remainingMs = timer.totalMs;
+  resetRemainingMs();
   saveTimerState();
   renderTimerUi();
 }
@@ -171,6 +188,7 @@ function fmtClock(ms) {
 }
 
 function phaseLabel() {
+  if (timer.mode === 'libre') return 'Cronómetro libre';
   if (timer.mode === 'normal') return 'Tiempo de estudio';
   return timer.phase === 'work' ? 'Enfocado' : 'Descanso';
 }
@@ -181,16 +199,26 @@ function renderTimerUi() {
   $('#startPauseBtn').textContent = timer.running ? 'Pausar' : 'Iniciar';
 
   const link = linkedHabit();
-  $('#timerCycle').textContent = link
-    ? (link.targetMin > 0
+  const task = linkedTask();
+  const taskMin = task && taskTime[task.id] ? taskTime[task.id][dateKey()] || 0 : 0;
+  let cycle = '';
+  if (link) {
+    cycle = link.targetMin > 0
       ? `Vinculado: ${link.name} · Meta ${formatDuration(link.targetMin)}`
-      : `Vinculado: ${link.name}`)
-    : (timer.mode === 'pomodoro'
-      ? `Pomodoro ${timer.phase === 'work' ? '· Trabajo' : '· Descanso'}`
-      : '');
-  $('#startPauseBtn').disabled = !timer.running && timer.remainingMs <= 0 && link && link.targetMin > 0 && !extraTimeEnabled;
+      : `Vinculado: ${link.name}`;
+  } else if (task) {
+    cycle = timer.mode === 'libre'
+      ? `Vinculado: ${task.text} · ${formatDuration(timer.remainingMs / 60000)}`
+      : `Vinculado: ${task.text} · Hoy ${formatDuration(taskMin)}`;
+  } else if (timer.mode === 'libre') {
+    cycle = 'Cronómetro libre';
+  } else if (timer.mode === 'pomodoro') {
+    cycle = `Pomodoro ${timer.phase === 'work' ? '· Trabajo' : '· Descanso'}`;
+  }
+  $('#timerCycle').textContent = cycle;
+  $('#startPauseBtn').disabled = timer.mode === 'normal' && !timer.running && timer.remainingMs <= 0 && link && link.targetMin > 0 && !extraTimeEnabled;
 
-  const pct = timer.totalMs > 0 ? (1 - timer.remainingMs / timer.totalMs) * 100 : 0;
+  const pct = timer.mode === 'libre' ? 0 : (timer.totalMs > 0 ? (1 - timer.remainingMs / timer.totalMs) * 100 : 0);
   $('#timerRing').style.background = `conic-gradient(var(--primary) ${pct}%, var(--ring-track) ${pct}%)`;
   $('#timerRing').classList.toggle('running', timer.running);
 
@@ -211,7 +239,7 @@ function startTimer() {
     return;
   }
   if (timer.remainingMs <= 0) {
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
   }
   timer.running = true;
   timer.lastTick = Date.now();
@@ -235,13 +263,18 @@ function stopTimer() {
 function tick() {
   if (!timer.running) return;
   const now = Date.now();
-  timer.remainingMs -= now - timer.lastTick;
+  const delta = now - timer.lastTick;
   timer.lastTick = now;
-  maybeSaveTimer();
-  if (timer.remainingMs <= 0) {
-    timer.remainingMs = 0;
-    completePhase();
+  if (timer.mode === 'libre') {
+    timer.remainingMs += delta;
+  } else {
+    timer.remainingMs -= delta;
+    if (timer.remainingMs <= 0) {
+      timer.remainingMs = 0;
+      completePhase();
+    }
   }
+  maybeSaveTimer();
   renderTimerUi();
 }
 
@@ -309,6 +342,50 @@ function linkedHabit() {
   return habits.find((h) => h.id === id) || null;
 }
 
+function linkedTask() {
+  const id = $('#linkTask').value;
+  return id ? findTaskById(id) : null;
+}
+
+function findTaskById(id) {
+  for (const key in weekTasks) {
+    const t = (weekTasks[key] || []).find((x) => x.id === id);
+    if (t) return t;
+  }
+  return recurringTasks.find((t) => t.id === id) || null;
+}
+
+function buildTaskLinkOptions() {
+  const sel = $('#linkTask');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'Sin tarea';
+  sel.appendChild(none);
+
+  const weekStart = startOfWeek(new Date());
+  for (let i = 0; i < 7; i++) {
+    const d = shiftDays(weekStart, i);
+    const key = dateKey(d);
+    const dayName = DAY_NAMES[d.getDay()];
+    (weekTasks[key] || []).forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `${t.text} · ${dayName}`;
+      sel.appendChild(opt);
+    });
+    recurringTasks.filter((t) => t.weekday === d.getDay()).forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = `↻ ${t.text} · ${dayName}`;
+      sel.appendChild(opt);
+    });
+  }
+  sel.value = prev && findTaskById(prev) ? prev : '';
+}
+
 function buildHabitLinkOptions() {
   const sel = $('#linkHabit');
   if (!sel) return;
@@ -340,24 +417,41 @@ function buildHabitLinkOptions() {
 function loadLinkedNormal() {
   commitElapsed('study');
   const h = linkedHabit();
+  const t = linkedTask();
   stopTimer();
   timer.phase = 'study';
+  if (timer.mode === 'libre') {
+    timer.totalMs = 0;
+    resetRemainingMs();
+    saveTimerState();
+    renderTimerUi();
+    return;
+  }
+  if (t) {
+    timer.totalMs = timer.customMin * 60000;
+    resetRemainingMs();
+    toast(`Vinculado a la tarea "${t.text}" · ${formatDuration(timer.customMin)}`);
+    saveTimerState();
+    renderTimerUi();
+    return;
+  }
   if (!h) {
     timer.totalMs = timer.customMin * 60000;
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
   } else {
     const targetMs = h.targetMin > 0 ? h.targetMin * 60000 : timer.customMin * 60000;
     const doneMs = h.targetMin > 0 ? trackedMinutes(h.id) * 60000 : 0;
     const rem = Math.max(targetMs - doneMs, 0);
     if (extraTimeEnabled) {
       timer.totalMs = timer.customMin * 60000;
-      timer.remainingMs = timer.totalMs;
+      resetRemainingMs();
       toast(rem <= 0
         ? `Tiempo extra para "${h.name}" · ${formatDuration(timer.customMin)}`
         : `Meta ${formatDuration(h.targetMin)} · Faltan ${formatDuration(rem / 60000)} · Tiempo extra disponible`);
     } else {
       timer.totalMs = rem > 0 ? rem : targetMs;
       timer.remainingMs = rem;
+      timer.lastCommittedMs = timer.remainingMs;
       if (h.targetMin > 0) {
         if (rem <= 0) {
           toast('Ya cumpliste la meta de hoy para este hábito');
@@ -374,12 +468,15 @@ function loadLinkedNormal() {
 }
 
 function commitElapsed(kind = 'study') {
-  const elapsedMs = timer.totalMs - timer.remainingMs;
+  const elapsedMs = timer.mode === 'libre'
+    ? timer.remainingMs - timer.lastCommittedMs
+    : timer.lastCommittedMs - timer.remainingMs;
   if (elapsedMs < 30000) return;
   const minutes = Math.round((elapsedMs / 60000) * 10) / 10;
   studyLog.push({ date: dateKey(), minutes, kind, ts: Date.now() });
   if (studyLog.length > 600) studyLog = studyLog.slice(-600);
   saveStudy();
+  timer.lastCommittedMs = timer.remainingMs;
   if (kind === 'study') {
     const habit = linkedHabit();
     if (habit) {
@@ -387,6 +484,14 @@ function commitElapsed(kind = 'study') {
       const today = dateKey();
       habitTime[habit.id][today] = (habitTime[habit.id][today] || 0) + minutes;
       saveHabitTime();
+    }
+    const task = linkedTask();
+    if (task) {
+      if (!taskTime[task.id]) taskTime[task.id] = {};
+      const today = dateKey();
+      taskTime[task.id][today] = (taskTime[task.id][today] || 0) + minutes;
+      saveTaskTime();
+      renderWeek();
     }
   }
   renderHabits();
@@ -428,7 +533,7 @@ function setNormalTime(totalMin, opts = {}) {
   if (timer.mode === 'normal') {
     timer.phase = 'study';
     timer.totalMs = totalMin * 60000;
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
     renderTimerUi();
   }
   if (!opts.silent) toast(`Tiempo configurado: ${formatDuration(totalMin)}`);
@@ -442,7 +547,8 @@ function completePhase() {
   if (timer.mode === 'normal') {
     commitElapsed('study');
     toast('¡Sesión de estudio completada!');
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
+    saveTimerState();
     renderTimerUi();
     if ($('#tab-stats').classList.contains('active')) renderStats();
     return;
@@ -463,7 +569,7 @@ function completePhase() {
     timer.phase = 'work';
     timer.totalMs = timer.workMin * 60000;
   }
-  timer.remainingMs = timer.totalMs;
+  resetRemainingMs();
   startTimer();
   saveTimerState();
   renderTimerUi();
@@ -472,14 +578,20 @@ function completePhase() {
 
 function skipPhase() {
   commitElapsed('study');
+  if (timer.mode === 'libre') {
+    stopTimer();
+    resetRemainingMs();
+    renderTimerUi();
+    return;
+  }
   if (!timer.running && timer.mode !== 'pomodoro') {
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
     renderTimerUi();
     return;
   }
   if (timer.mode === 'normal') {
     stopTimer();
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
     renderTimerUi();
     return;
   }
@@ -490,7 +602,7 @@ function skipPhase() {
     timer.phase = 'work';
     timer.totalMs = timer.workMin * 60000;
   }
-  timer.remainingMs = timer.totalMs;
+  resetRemainingMs();
   startTimer();
   saveTimerState();
   renderTimerUi();
@@ -499,7 +611,11 @@ function skipPhase() {
 $('#startPauseBtn').addEventListener('click', () => {
   if (timer.running) {
     pauseTimer();
-    commitElapsed('study');
+    commitElapsed(timer.mode === 'pomodoro' && timer.phase === 'break' ? 'break' : 'study');
+    if (timer.mode === 'libre') {
+      resetRemainingMs();
+      saveTimerState();
+    }
   } else {
     startTimer();
   }
@@ -515,11 +631,14 @@ $('#resetBtn').addEventListener('click', () => {
       return;
     }
     timer.totalMs = timer.customMin * 60000;
+  } else if (timer.mode === 'libre') {
+    timer.phase = 'study';
+    timer.totalMs = 0;
   } else {
     timer.phase = 'work';
     timer.totalMs = timer.workMin * 60000;
   }
-  timer.remainingMs = timer.totalMs;
+  resetRemainingMs();
   saveTimerState();
   renderTimerUi();
 });
@@ -528,6 +647,7 @@ $('#skipBtn').addEventListener('click', skipPhase);
 
 $('#modeNormal').addEventListener('click', () => setMode('normal'));
 $('#modePomodoro').addEventListener('click', () => setMode('pomodoro'));
+$('#modeLibre').addEventListener('click', () => setMode('libre'));
 
 $('#applyNormal').addEventListener('click', () => {
   const h = parseInt($('#customH').value, 10) || 0;
@@ -544,7 +664,13 @@ $('#applyNormal').addEventListener('click', () => {
 });
 
 $('#linkHabit').addEventListener('change', () => {
+  if ($('#linkHabit').value) $('#linkTask').value = '';
   if (timer.mode === 'normal') loadLinkedNormal();
+});
+
+$('#linkTask').addEventListener('change', () => {
+  if ($('#linkTask').value) $('#linkHabit').value = '';
+  if (timer.mode === 'normal' || timer.mode === 'libre') loadLinkedNormal();
 });
 
 $('#extraTimeToggle').addEventListener('change', (e) => {
@@ -565,7 +691,7 @@ $('#applyPomodoro').addEventListener('click', () => {
   if (timer.mode === 'pomodoro' && !timer.running) {
     timer.phase = 'work';
     timer.totalMs = w * 60000;
-    timer.remainingMs = timer.totalMs;
+    resetRemainingMs();
     renderTimerUi();
   }
   toast(`Pomodoro: ${w} min trabajo / ${b} min descanso`);

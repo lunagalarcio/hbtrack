@@ -136,6 +136,12 @@ function renderWeek() {
         li.appendChild(rep);
       }
 
+      const taskMin = taskTime[task.id] && taskTime[task.id][key];
+      if (taskMin > 0) {
+        const min = Object.assign(document.createElement('span'), { className: 'task-min', textContent: formatDuration(taskMin) });
+        li.appendChild(min);
+      }
+
       const del = document.createElement('button');
       del.className = 'task-del';
       del.textContent = 'x';
@@ -261,6 +267,7 @@ function renderWeek() {
     col.append(h4, dateNum, importantWrap, ul, addForm);
     grid.appendChild(col);
   }
+  buildTaskLinkOptions();
 }
 
 $('#prevWeek').addEventListener('click', () => { weekOffset--; renderWeek(); });

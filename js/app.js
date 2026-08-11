@@ -42,6 +42,7 @@ window.initApp = async function () {
   if (window.syncFirstLogin) syncPushAll();
   resumePending();
   buildHabitLinkOptions();
+  buildTaskLinkOptions();
   if (!restoreTimerState()) setMode(timerMode);
   $('#customH').value = Math.floor(timer.customMin / 60);
   $('#customMin').value = timer.customMin % 60;

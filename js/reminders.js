@@ -82,29 +82,30 @@ function checkPending() {
   pendingNotify();
 }
 
-function initReminders() {
-  reminderEnabled = store.get('reminderEnabled', false);
-  reminderTime = store.get('reminderTime', '20:00');
-  reminderLastSent = store.get('reminderLastSent', '');
-
+function renderReminders() {
   const toggle = $('#reminderToggle');
   if (toggle) toggle.checked = reminderEnabled;
   const time = $('#reminderTime');
   if (time) time.value = reminderTime;
-
-  clearInterval(reminderCheckTimer);
-  reminderCheckTimer = setInterval(checkReminder, 30000);
-  reminderNotify();
-
-  /* Recordatorio de pendientes */
-  pendingEnabled = store.get('pendingEnabled', false);
-  pendingTime = store.get('pendingTime', '19:00');
-  pendingLastSent = store.get('pendingLastSent', '');
-
   const pToggle = $('#pendingToggle');
   if (pToggle) pToggle.checked = pendingEnabled;
   const pTime = $('#pendingTime');
   if (pTime) pTime.value = pendingTime;
+}
+
+function initReminders() {
+  reminderEnabled = store.get('reminderEnabled', false);
+  reminderTime = store.get('reminderTime', '20:00');
+  reminderLastSent = store.get('reminderLastSent', '');
+  pendingEnabled = store.get('pendingEnabled', false);
+  pendingTime = store.get('pendingTime', '19:00');
+  pendingLastSent = store.get('pendingLastSent', '');
+
+  renderReminders();
+
+  clearInterval(reminderCheckTimer);
+  reminderCheckTimer = setInterval(checkReminder, 30000);
+  reminderNotify();
 
   clearInterval(pendingCheckTimer);
   pendingCheckTimer = setInterval(checkPending, 30000);

@@ -84,6 +84,7 @@ let weekTasks = {};
 let studyLog = [];
 let pomodoroDays = {};
 let habitTime = {};
+let taskTime = {};
 let calendarMarks = {};
 let calendarNotes = {};
 let timetable = [];
@@ -104,6 +105,7 @@ function loadData() {
   studyLog = store.get('studyLog', []);
   pomodoroDays = store.get('pomodoroDays', {});
   habitTime = store.get('habitTime', {});
+  taskTime = store.get('taskTime', {});
   calendarMarks = store.get('calendarMarks', {});
   calendarNotes = store.get('calendarNotes', {});
   timetable = store.get('timetable', []);
@@ -127,6 +129,7 @@ function saveTasks() { store.set('weekTasks', weekTasks); }
 function saveStudy() { store.set('studyLog', studyLog); }
 function savePomodoro() { store.set('pomodoroDays', pomodoroDays); }
 function saveHabitTime() { store.set('habitTime', habitTime); }
+function saveTaskTime() { store.set('taskTime', taskTime); }
 function saveCalendarMarks() { store.set('calendarMarks', calendarMarks); }
 function saveCalendarNotes() { store.set('calendarNotes', calendarNotes); }
 function saveRecurringTasks() { store.set('recurringTasks', recurringTasks); }
@@ -232,5 +235,6 @@ $$('.tab-btn').forEach((btn) => {
     if (btn.dataset.tab === 'timetable') renderTimetable();
     if (btn.dataset.tab === 'calendar') renderCalendar();
     if (btn.dataset.tab === 'board') renderBoard();
+    if (btn.dataset.tab === 'reminders') renderReminders();
   });
 });
